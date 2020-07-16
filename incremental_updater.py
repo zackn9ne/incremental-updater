@@ -13,38 +13,42 @@ import sys
 
 #options
 TIME = '30'
-LOGOPATH = './jumbo.png'
+LOGO_PATH = './jumbo.png'
+RUN_SILENTLY = True
 #first
-FIRSTPOPTITLE = 'unsupported macOS Version'
-FIRSTPOPBAR = 'Update Required'
-FIRSTPOP = '''Your macOS needs security updates.
+FIRST_POP_TITLE = 'unsupported macOS Version'
+FIRST_POP_BAR = 'Update Required'
+FIRST_POP = '''Your macOS needs security updates.
 
 Press the Update button below, you will have one more screen to confirm before this runs.'''
-FIRSTPOPBTN = 'Update'
+FIRST_POP_BTN = 'Update'
 #success
-OKPOPTITLE = 'macOS is Secure'
-OKPOPBAR = 'Good job'
-OKPOP = "Congratulations you're up to date, thanks for clicking."
-OKPOPBTN = 'FLEX MODE'
+OK_POP_TITLE = 'macOS is Secure'
+OK_POP_BAR = 'Good job'
+OK_POP = "Congratulations you're up to date, thanks for clicking."
+OK_POP_BTN = 'FLEX MODE'
 #second
-SECONDPOP = 'Save your work because unless you press Postpone, your updates will begin in {} seconds...'.format(TIME)
+SECOND_POP = 'Save your work because unless you press Postpone, your updates will begin in {} seconds...'.format(TIME)
 
-class minorUpdate():
+class MinorUpdate():
     # build class
     def __init__(self):
         self.binary = '/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper'
         self.datafile = '/tmp/jumboupdater.log'
     
+    def simple_messaging(self, verb, noun):
+        print(verb, noun)
+    
     def icons(self):
-        if LOGOPATH:
+        if LOGO_PATH:
             try:
-                open(LOGOPATH)
-                self.icon = "{}".format(LOGOPATH)  #icon failover business   
+                open(LOGO_PATH)
+                self.icon = "{}".format(LOGO_PATH)  #icon failover business   
             except IOError:
                 print("404 icon not found")
                 self.icon = "/System/Library/CoreServices/Problem Reporter.app/Contents/Resources/ProblemReporter.icns"        
  
-    def buildWindow(self, windowStyle, heading, title, message, *args):
+    def build_window(self, windowStyle, heading, title, message, *args):
         window = [
             self.binary,
             "-windowType",
@@ -54,7 +58,7 @@ class minorUpdate():
             "-title",
             title,
             "-description",
-            message, #what do you wanna say
+            message,
             "-icon",
             self.icon,
             "-defaultbutton", #action button
@@ -64,53 +68,51 @@ class minorUpdate():
             window.append(ar)
         return window
 
-    def windowLauncher(self, popup_type): #feed me a buildWindow()
+    def fire_window(self, popup_type): #feed me a build_window()
         self.proc = subprocess.Popen(popup_type, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.out, self.err = self.proc.communicate()
         self.result = self.proc.returncode
         return self.result
 
-    def handle(self, result):
-        print "User clicks:", result
-        if result == 0 or result == 2:
+    def handle_window_result(self, result, mode):
+        print "User clicks: {}, computer status was {}".format(result, mode)
+
+        if isinstance(result, int):
             return result
         else:
             print("Error: %s" % result)
             return result
 
-    def doesDataFileExist(self):
+    def does_data_file_exist(self):
         if path.exists(self.datafile):
             return True
     
-    def simplemessaging(self, info, noun):
-        print(info, noun)
-    
-    def writeUpdateStatus(self):
+    def write_machine_status(self):
         data = subprocess.Popen(['softwareupdate', '-l'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         stdout,stderr = data.communicate()
-        self.simplemessaging("writing", self.datafile)            
+        self.simple_messaging("writing", self.datafile)            
         f = open(self.datafile, 'wb')
         f.write(stdout)
         f.close()
   
-    def readUpdateStatus(self):
-        self.simplemessaging("reading", self.datafile)
+    def read_machine_status(self):
+        self.simple_messaging("reading", self.datafile)
         f = open(self.datafile, 'r')
-        stdout = f.readlines()
-        stdout = '#'.join(stdout)
-        print stdout
-        if "restart" in stdout:
+        raw_file_contents = f.readlines()
+        file_contents = '#'.join(raw_file_contents)
+        print file_contents
+        if "restart" in file_contents:
         #    print('<result>true</result>')
             return True
         else:
             print('<result>false</result>')
             return False
 
-    def doUpdates(self):
-        if self.readUpdateStatus():
-            return True
+    # def do_updates(self):
+    #     if self.read_machine_status():
+    #         return True
 
-    def runShellCMD(self, *args):
+    def run_shell_CMD(self, *args):
         commands = []
         for t in args:
             commands.append(t)
@@ -121,59 +123,62 @@ class minorUpdate():
     def main(self):
         """main here"""
         self.icons() #always
-        self.doesDataFileExist() #always
-
-        if not self.doesDataFileExist():
-            self.writeUpdateStatus()
-
-        self.readUpdateStatus() #always
-
-        """for window logic 0 is when user clicks default button"""
-        if self.doUpdates(): #dostuff
-            w = self.buildWindow(
+        self.does_data_file_exist() #always
+        self.first = self.build_window(
                 'hud',
-                FIRSTPOPTITLE,
-                FIRSTPOPBAR,
-                FIRSTPOP,
+                FIRST_POP_TITLE,
+                FIRST_POP_BAR,
+                FIRST_POP,
                 '-button1',
-                FIRSTPOPBTN
+                FIRST_POP_BTN
+            )        
+        self.second = self.build_window(
+                'hud', 
+                'Countdown Started', 
+                'Restart Pending', 
+                SECOND_POP,
+                '-button1', #user clicks 0 things happen
+                'Proceed', 
+                '-button2', #user clicks 2 things don't happen
+                'Postpone', 
+                '-countdown', 
+                '-timeout', 
+                TIME
             )
+        self.ok = self.build_window(
+            'hud',
+            OK_POP_TITLE,
+            OK_POP_BAR,
+            OK_POP,
+            '-button1', #user clicks 0
+            OK_POP_BTN
+        )
+        self.update_required = ''
 
-            if self.handle(self.windowLauncher(w)) is 0:
-                print 'user clicked 1st window'       
+        if not self.does_data_file_exist():
+            self.write_machine_status()
 
-                w = self.buildWindow(
-                    'hud', 
-                    'Countdown Started', 
-                    'Restart Pending', 
-                    SECONDPOP,
-                    '-button1', #user clicks 0 things happen
-                    'Proceed', 
-                    '-button2', #user clicks 2 things don't happen
-                    'Postpone', 
-                    '-countdown', 
-                    '-timeout', 
-                    TIME
-                )
-                if self.handle(self.windowLauncher(w)) is 0:
-                    print ('user clicked 2nd window or timer of {} expired').format(TIME)
-                else:
-                    print 'user declined 2nd window'
+        if self.read_machine_status():
+            self.update_required = 'True'
 
-        if not self.doUpdates(): #allclear
-            w = self.buildWindow(
-                'hud',
-                OKPOPTITLE,
-                OKPOPBAR,
-                OKPOP,
-                '-button1', #user clicks 0
-                OKPOPBTN
-            )
-            if self.handle(self.windowLauncher(w)) is 0:
-                print 'user ragreed'        
+        if self.update_required and self.handle_window_result(self.fire_window(self.first), "updates needed") is 0:
+            print "user agrees"
+            #self.handle_window_result(self.fire_window(self.second), "updates needed")
+
+            if self.update_required and self.handle_window_result(self.fire_window(self.second), "updates needed") is 0:
+                print "user wants to really do stuff or timer expired forcing said stuff"
+                self.run_shell_CMD("softwareupdate", "-l")
+            else:
+                print "user bailed at second windwo"
+        if not self.update_required and RUN_SILENTLY:
+            print "computer is fine RUN_SILENTLY: {}, was enabeled".format(RUN_SILENTLY)
+        if not self.update_required and not RUN_SILENTLY:
+            #self.fire_window(self.ok) #todo handle_window_result button clicke for this mode
+            self.handle_window_result(self.fire_window(self.ok), "celebrating that computer is fine")
+
 
 
 
 if __name__ == "__main__":
 #    buildPromptVars(typeOneWindow)
-    minorUpdate().main()
+    MinorUpdate().main()
