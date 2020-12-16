@@ -1,6 +1,6 @@
 # incremental-updater
 
-Requires Jamf Helperwindow.app 
+Requires jamfHelper.app, runs in Python 2.7
 
 Makes double confirmation window for users to interact with if there computer has an incremental update. Hence the name jumbo.
 
